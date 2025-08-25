@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>เกมหงายการ์ด</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Kanit&display=swap');
+
+    body {
+      font-family: 'Kanit', sans-serif;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      overflow-x: hidden;
+    }
+
+    /* พื้นหลังแบบ 3 มิติ */
+    body::before {
+      content: "";
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: linear-gradient(120deg, #74ebd5, #ACB6E5, #fbc2eb, #a6c1ee);
+      background-size: 600% 600%;
+      z-index: -1;
+      animation: gradientMove 15s ease infinite;
+      transform: perspective(1000px) rotateX(5deg);
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    h1 {
+      color: #fff;
+      margin-top: 40px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    }
+
+    p {
+      color: #f0f0f0;
+      font-size: 18px;
+    }
+
+    .card-container {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 15px;
+      margin-top: 30px;
+      padding: 20px;
+      max-width: 580px; /* 5 ใบ × (100px + 15px gap) */
+      margin-left: auto;
+      margin-right: auto;
+    }
+
+    .card {
+      width: 100px;
+      height: 140px;
+      background-color: #ffffffcc;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      cursor: pointer;
+      transition: transform 0.4s ease, box-shadow 0.4s;
+      position: relative;
+      backdrop-filter: blur(3px);
+    }
+
+    .card:hover {
+      transform: scale(1.05) rotateY(10deg);
+      box-shadow: 0 12px 20px rgba(0,0,0,0.5);
+    }
+
+    .card.revealed {
+      background-color: #ffdddd;
+      font-size: 20px;
+      font-weight: bold;
+      transform: scale(1.1);
+    }
+
+    .result {
+      margin-top: 40px;
+      font-size: 26px;
+      color: #ff3333;
+      font-weight: bold;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+
+    button {
+      margin-top: 20px;
+      padding: 10px 20px;
+      font-size: 18px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+      transition: background-color 0.3s, transform 0.2s;
+    }
+
+    button:hover {
+      background-color: #388e3c;
+      transform: scale(1.05);
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎴 เกมการ์ดสุ่มเลี้ยงข้าว เลี้ยงนํ้า ลงไปเอาของ? 😱</h1>
+  <p>คลิกการ์ดใบใดก็ได้เพื่อดูว่าใครต้องเลี้ยงข้าว เลี้ยงนํ้า ลงไปเอาของ</p>
+
+  <div class="card-container" id="cardContainer"></div>
+  <div class="result" id="result"></div>
+  <button onclick="setupGame()">🔁 เล่นใหม่</button>
+
+  <script>
+    const names = ["ทอม", "มอส", "ม่อน", "ทอม", "หญิง", "เปรม", "ปั่น", "เบส","ม่อน", "มายด์", "เหมี่ยว", "แพม", "ชาร์ม","มอส","มาร์ช"];
+    const animals = ["🐶", "🐱", "🦊", "🐻", "🐼", "🐯", "🐮", "🐷", "🦈", "🐍", "🐉", "🐘", "🐬", "🐟", "🐝"];
+    const container = document.getElementById("cardContainer");
+    const resultDiv = document.getElementById("result");
+
+    let hasRevealed = false;
+
+    function shuffleArray(array) {
+      return array.sort(() => Math.random() - 0.5);
+    }
+
+    function setupGame() {
+      container.innerHTML = "";
+      resultDiv.textContent = "";
+      hasRevealed = false;
+
+      const shuffledNames = shuffleArray([...names]);
+      const shuffledAnimals = shuffleArray([...animals]);
+
+      shuffledNames.forEach((name, index) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = shuffledAnimals[index]; // แสดงสัตว์ก่อน
+
+        card.addEventListener('click', function () {
+          if (hasRevealed) return; // เปิดได้แค่ใบเดียว
+          hasRevealed = true;
+
+          card.classList.add('revealed');
+          card.innerHTML = name;
+
+          resultDiv.innerHTML = `❌ <strong>${name}</strong> โดน! ต้องเลี้ยงข้าว เลี้ยงนํ้า ลงไปเอาของ 🎒`;
+        });
+
+        container.appendChild(card);
+      });
+    }
+
+    setupGame();
+  </script>
+
+</body>
+</html>
