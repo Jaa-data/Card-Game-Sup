@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>เกมวิ่งแข่ง 8-bit</title>
+  <style>
+    html, body {
+      margin: 0; padding: 0;
+      background: #111;
+      overflow: hidden;
+      font-family: 'Pixel', sans-serif;
+      height: 100%;
+    }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+    }
+    #message {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      font-size: 2.5vw;
+      color: #ff4444;
+      font-weight: bold;
+      display: none;
+    }
+    #restartBtn, #restartSameBtn, #startBtn, #addBtn {
+      font-size: 14px;
+      padding: 8px 15px;
+      background-color: #444;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+    #restartBtn, #restartSameBtn {
+      position: absolute;
+      top: 72%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 16px;
+      padding: 12px 25px;
+      background-color: #222;
+      color: #fff;
+      border-radius: 10px;
+      display: none;
+    }
+    #restartSameBtn {
+      top: 80%; /* ปุ่มนี้อยู่ต่ำกว่าปุ่มรีสตาร์ทหลักนิดหน่อย */
+    }
+    #nameContainer {
+      position: absolute;
+      top: 25%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 300px;
+      max-height: 60%;
+      overflow-y: auto;
+      background: rgba(0,0,0,0.4);
+      padding: 15px;
+      border-radius: 10px;
+      text-align: center;
+    }
+    #playerInputs {
+      margin-bottom: 15px;
+    }
+    #nameContainer input {
+      display: inline-block;
+      width: 75%;
+      margin: 3px auto;
+      padding: 5px;
+      font-size: 14px;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+    }
+    .playerRow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 5px;
+    }
+    .removeBtn {
+      background: #c00;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 5px;
+    }
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    @font-face {
+      font-family: 'Pixel';
+      src: url('https://fonts.cdnfonts.com/s/34909/PressStart2P-Regular.woff') format('woff');
+    }
+    #gameTitle {
+      position: absolute;
+      top: 6%;
+      left: 50%;
+      transform: translateX(-50%);
+      font-family: 'Pixel', sans-serif;
+      font-size: 3.0vw;
+      color: #ffffff;
+      text-shadow: 
+       0 0 5px #be005f,
+       0 0 10px #be005f,
+       0 0 20px #be005f,
+       0 0 40px #be005f,
+       0 0 80px #be005f;
+      text-align: center;
+      animation: floatTitle 2s ease-in-out infinite alternate;
+      z-index: 10;
+      pointer-events: none;
+      user-select: none;
+    }
+    @keyframes floatTitle {
+      from { transform: translate(-50%, 0px); }
+      to   { transform: translate(-50%, 12px); }
+    }
+  </style>
+</head>
+<body>
+  <div id="gameTitle">🪙 เกมส์วิ่งแข่งกันลงไปเอาของ 🪙</div>
+
+  <canvas id="gameCanvas"></canvas>
+  <div id="message"></div>
+
+  <div id="nameContainer">
+    <p style="color:white; font-family:Pixel; margin-bottom:10px;">
+      กรอกรายชื่อผู้เล่น (สูงสุด 25 คน)
+    </p>
+    <div id="playerInputs"></div>
+    <div class="button-group">
+      <button id="addBtn">➕ เพิ่มผู้เล่น</button>
+      <button id="startBtn">เริ่มเกม</button>
+    </div>
+  </div>
+
+  <button id="restartBtn">เริ่มใหม่อีกครั้ง</button>
+  <button id="restartSameBtn">เริ่มใหม่ (รายชื่อเดิม)</button>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    let lastPlayerNames = []; // เก็บรายชื่อเดิม
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", () => {
+      resizeCanvas();
+      finishLineX = 150;
+    });
+    resizeCanvas();
+
+    const emojiPool = ["🐶","🐱","🐰","🦊","🐼","🐸","🐨","🐵","🐯","🦁","🐷","🐻","🦄","🐔","🐧","🐢","🦉","🐙","🐞","🦖","🐴","🦒","🦘","🐹","🐺"];
+
+    let animals = [];
+    let finishLineX = 150;
+    let characterSize = 60;
+    let laneGap = 20;
+
+    let allFinished = false;
+    let finishCounter = 0;
+    let gameStarted = false;
+    let startTime = 0;
+
+    let fireworks = [];
+
+    const playerInputs = document.getElementById("playerInputs");
+    const addBtn = document.getElementById("addBtn");
+
+    function createInputRow(index) {
+      const row = document.createElement("div");
+      row.className = "playerRow";
+
+      const input = document.createElement("input");
+      input.type = "text";
+      input.placeholder = "ผู้เล่น " + (index + 1);
+
+      const removeBtn = document.createElement("button");
+      removeBtn.textContent = "❌";
+      removeBtn.className = "removeBtn";
+      removeBtn.onclick = () => {
+        row.remove();
+        updatePlaceholders();
+      };
+
+      row.appendChild(input);
+      row.appendChild(removeBtn);
+      return row;
+    }
+
+    function updatePlaceholders() {
+      const inputs = playerInputs.querySelectorAll("input");
+      inputs.forEach((inp, idx) => {
+        inp.placeholder = "ผู้เล่น " + (idx + 1);
+      });
+    }
+
+    addBtn.addEventListener("click", () => {
+      const count = playerInputs.querySelectorAll(".playerRow").length;
+      if (count >= 25) {
+        alert("เพิ่มได้สูงสุด 25 คน");
+        return;
+      }
+      playerInputs.appendChild(createInputRow(count));
+    });
+
+    for (let i = 0; i < 3; i++) {
+      playerInputs.appendChild(createInputRow(i));
+    }
+
+    function emojiToImage(emoji, size) {
+      const offscreen = document.createElement("canvas");
+      const ctx2 = offscreen.getContext("2d");
+      offscreen.width = size;
+      offscreen.height = size;
+      ctx2.font = `${size}px serif`;
+      ctx2.textAlign = "center";
+      ctx2.textBaseline = "middle";
+      ctx2.fillText(emoji, size / 2, size / 2);
+      return offscreen;
+    }
+
+    function initGame(playerNames) {
+      const now = Date.now();
+      animals = [];
+      let availableEmojis = [...emojiPool];
+
+      const maxHeight = canvas.height * 0.9;
+      const laneGapRatio = 0.3;
+      let estimatedSize = maxHeight / (playerNames.length + playerNames.length * laneGapRatio);
+
+      characterSize = Math.max(25, Math.min(70, estimatedSize));
+      laneGap = characterSize * laneGapRatio;
+
+      const totalHeight = playerNames.length * (characterSize + laneGap);
+      const startY = (canvas.height / 2) - (totalHeight / 2);
+
+      playerNames.forEach((name, i) => {
+        if (availableEmojis.length === 0) availableEmojis = [...emojiPool];
+        const randIndex = Math.floor(Math.random() * availableEmojis.length);
+        const emoji = availableEmojis.splice(randIndex, 1)[0];
+
+        animals.push({
+          name: name,
+          emoji: emoji,
+          img: emojiToImage(emoji, characterSize),
+          x: canvas.width - 45 - characterSize,
+          y: startY + i * (characterSize + laneGap),
+          baseY: startY + i * (characterSize + laneGap), // 👉 เพิ่มค่า Y ต้นฉบับสำหรับกระโดด
+          speed: 0, // 👉 เริ่มแรกให้ยืนเฉยๆ
+          targetSpeed: 0,
+          finished: false,
+          finishTime: 0,
+          startTime: now,
+          effects: []
+        });
+      });
+
+      finishLineX = 150;
+      allFinished = false;
+      finishCounter = 0;
+      document.getElementById("message").style.display = "none";
+      document.getElementById("restartBtn").style.display = "none";
+      document.getElementById("restartSameBtn").style.display = "none";
+      gameStarted = false;
+      startTime = 0;
+      fireworks = [];
+    }
+
+    function drawBackground() {
+      const bg = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      bg.addColorStop(0, "#a18cd1");
+      bg.addColorStop(1, "#fbc2eb");
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    function drawTrack() {
+      const t = (Math.sin(Date.now() * 0.001) + 1) / 2;
+      const r = Math.floor(50 + 100 * t);
+      const g = Math.floor(30 + 70 * (1 - t));
+      const b = Math.floor(80 + 120 * t);
+      const darkColor = `rgb(${r}, ${g}, ${b})`;
+
+      const grad = ctx.createLinearGradient(finishLineX, 0, finishLineX + 6, canvas.height);
+      grad.addColorStop(0, darkColor);
+      grad.addColorStop(1, "#111");
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(finishLineX, 0, 6, canvas.height);
+    }
+    function drawAnimals() {
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      animals.forEach(animal => {
+        let drawY = animal.y;
+
+        // 👉 ถ้ายังไม่เริ่มเกม ให้กระดิก/กระโดดเล็กน้อย
+        if (!gameStarted) {
+          const bounce = Math.sin(Date.now() * 0.005 + animal.x) * 6; // กระดิกขึ้นลง
+          drawY = animal.baseY + bounce;
+        }
+
+        ctx.drawImage(animal.img, animal.x, drawY, characterSize, characterSize);
+
+        const glow = (Math.sin(Date.now() * 0.005) + 1) * 6;
+        ctx.font = "14px Pixel";
+        ctx.textAlign = "left";
+        ctx.shadowColor = "#ff00aa";
+        ctx.shadowBlur = glow;
+        ctx.fillStyle = "#222";
+        ctx.fillText(animal.name, animal.x + characterSize + 10, drawY + characterSize / 2 + 6);
+        ctx.shadowBlur = 0;
+
+        if (animal.effects) {
+          animal.effects.forEach((eff, idx) => {
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(255, 255, 255, ${eff.alpha})`;
+            ctx.arc(eff.x, eff.y, eff.radius, 0, Math.PI * 2);
+            ctx.fill();
+            eff.alpha -= 0.02;
+            eff.radius += 0.5;
+            if (eff.alpha <= 0) {
+              animal.effects.splice(idx, 1);
+            }
+          });
+        }
+      });
+    }
+
+    function spawnFirework() {
+      const colors = ['#ff4444','#44ff44','#4444ff','#ffff44','#ff44ff','#44ffff'];
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * (canvas.height / 2);
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const particles = [];
+      for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = Math.random() * 4 + 2;
+        particles.push({
+          x, y,
+          dx: Math.cos(angle) * speed,
+          dy: Math.sin(angle) * speed,
+          radius: 2 + Math.random() * 2,
+          alpha: 1,
+          color
+        });
+      }
+      fireworks.push(particles);
+    }
+    function updateFireworks() {
+      fireworks.forEach((particles, index) => {
+        particles.forEach(p => {
+          p.x += p.dx;
+          p.y += p.dy;
+          p.dy += 0.05;
+          p.alpha -= 0.015;
+        });
+        fireworks[index] = particles.filter(p => p.alpha > 0);
+      });
+      fireworks = fireworks.filter(p => p.length > 0);
+    }
+    function drawFireworks() {
+      fireworks.forEach(particles => {
+        particles.forEach(p => {
+          ctx.beginPath();
+          ctx.globalAlpha = p.alpha;
+          ctx.fillStyle = p.color;
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        });
+      });
+      ctx.globalAlpha = 1;
+    }
+
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      drawBackground();
+      drawTrack();
+
+      if (!gameStarted) {
+        drawAnimals();
+        requestAnimationFrame(update);
+        return;
+      }
+
+      const now = Date.now();
+      const elapsed = (now - startTime) / 1000;
+
+      if (!allFinished) {
+        animals.forEach(animal => {
+          if (!animal.finished) {
+            if (Math.random() < 0.02) {
+              animal.targetSpeed = -(Math.random() * 1.6 + 0.4);
+            }
+            animal.speed += (animal.targetSpeed - animal.speed) * 0.05;
+            animal.x += animal.speed;
+
+            if (elapsed > 50) {
+              animal.x = finishLineX - characterSize - 5;
+            }
+
+            if (animal.x <= finishLineX) {
+              animal.finished = true;
+              animal.finishTime = now + Math.random() * 200;
+              finishCounter++;
+              animal.x = finishLineX - characterSize;
+
+              for (let i = 0; i < 5; i++) {
+                animal.effects.push({
+                  x: animal.x + characterSize / 2 + (Math.random() * 30 - 15),
+                  y: animal.y + characterSize / 2 + (Math.random() * 20 - 10),
+                  radius: 5 + Math.random() * 5,
+                  alpha: 0.8
+                });
+              }
+            }
+          }
+        });
+      }
+
+      drawAnimals();
+
+      if (allFinished) {
+        if (Math.random() < 0.1) spawnFirework();
+      }
+
+      updateFireworks();
+      drawFireworks();
+
+      if (!allFinished && finishCounter === animals.length) {
+        allFinished = true;
+        animals.sort((a, b) => a.finishTime - b.finishTime);
+        const loser = animals[animals.length - 1];
+        showMessage(loser.name);
+        document.getElementById("restartBtn").style.display = "block";
+        document.getElementById("restartSameBtn").style.display = "block";
+      }
+
+      requestAnimationFrame(update);
+    }
+
+    function showMessage(loserName) {
+      const msg = document.getElementById("message");
+      msg.innerHTML = `
+       <div style="
+       font-size:3.5vw; 
+       margin-bottom:15px; 
+       font-family: 'Pixel', sans-serif;
+       font-weight:bold;
+       color:#ff2222;
+       text-shadow:
+        2px 2px 0 #000,
+        4px 4px 0 #660000,
+        0 0 10px #ff4444,
+        0 0 20px #ff0000,
+        0 0 40px #ff2222;
+       ">
+      ${loserName}
+       </div>
+       <div style="
+       font-size:2.2vw; 
+       font-family: 'Pixel', sans-serif;
+       font-weight:bold;
+       color:#ff5555;
+       text-shadow:
+        1px 1px 0 #000,
+        2px 2px 0 #330000,
+        0 0 8px #ff4444;
+       ">
+       ต้องเลี้ยงข้าว เลี้ยงนํ้า ลงไปเอาของ ให้ทุกคนที่ชนะ
+       </div>
+       `;
+      msg.style.display = "block";
+    }
+
+    function countdown(startNames) {
+      let count = 3;
+      const msg = document.getElementById("message");
+
+      // 👉 ให้สร้างสัตว์ยืนก่อนเริ่มนับ
+      initGame(startNames);
+      msg.style.display = "block";
+
+      function step() {
+        if (count > 0) {
+          msg.textContent = count;
+          count--;
+          setTimeout(step, 1000);
+        } else {
+          msg.textContent = "GO!";
+          setTimeout(() => {
+            msg.style.display = "none";
+            // 👉 ตอนนี้ค่อยเริ่มวิ่ง
+            gameStarted = true;
+            startTime = Date.now();
+          }, 800);
+        }
+      }
+      step();
+    }
+
+    document.getElementById("startBtn").addEventListener("click", () => {
+      const inputs = playerInputs.querySelectorAll("input");
+      const names = Array.from(inputs).map(i => i.value.trim()).filter(n => n !== "");
+      if (names.length === 0) {
+        alert("กรุณาใส่รายชื่อผู้เล่นอย่างน้อย 1 คน");
+        return;
+      }
+      if (names.length > 25) {
+        alert("สูงสุด 25 คน");
+        return;
+      }
+      lastPlayerNames = names; // เก็บรายชื่อเดิม
+      document.getElementById("gameTitle").style.display = "none";
+      document.getElementById("nameContainer").style.display = "none";
+      countdown(names);
+    });
+
+    document.getElementById("restartBtn").addEventListener("click", () => {
+      animals = [];
+      fireworks = [];
+      allFinished = false;
+      finishCounter = 0;
+      gameStarted = false;
+      startTime = 0;
+
+      document.getElementById("gameTitle").style.display = "block";
+      document.getElementById("nameContainer").style.display = "block";
+      document.getElementById("message").style.display = "none";
+      document.getElementById("restartBtn").style.display = "none";
+      document.getElementById("restartSameBtn").style.display = "none";
+
+      playerInputs.innerHTML = "";
+      for (let i = 0; i < 3; i++) {
+        playerInputs.appendChild(createInputRow(i));
+      }
+      finishLineX = 150;
+    });
+
+    document.getElementById("restartSameBtn").addEventListener("click", () => {
+      if (lastPlayerNames.length > 0) {
+        animals = [];
+        fireworks = [];
+        allFinished = false;
+        finishCounter = 0;
+        gameStarted = false;
+        startTime = 0;
+        document.getElementById("message").style.display = "none";
+        document.getElementById("restartBtn").style.display = "none";
+        document.getElementById("restartSameBtn").style.display = "none";
+        countdown(lastPlayerNames);
+      }
+    });
+
+    update();
+  </script>
+</body>
+</html>

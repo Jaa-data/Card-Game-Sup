@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <title>เกมยิงนก เปย์ข้าว</title>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: linear-gradient(to top, #77c850 50%, #aee1f9 50%);
+      font-family: 'Kanit', sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    /* หัวข้อเกม */
+    #gameTitle {
+      position: fixed;
+      top: 90px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 60px;
+      font-weight: bold;
+      color: #ffeb3b;
+      text-shadow: 
+          2px 2px 0 #000, 
+          4px 4px 0 #444, 
+          6px 6px 0 #222, 
+          8px 8px 15px rgba(0,0,0,0.8);
+      z-index: 1000;
+      text-align: center;
+      letter-spacing: 3px;
+      animation: bounce 2s infinite ease-in-out;
+    }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateX(-50%) translateY(0); }
+      50% { transform: translateX(-50%) translateY(-15px); }
+    }
+
+    #popup, #nameInputBox {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      border-radius: 20px;
+      padding: 25px 35px;
+      font-size: 13px;
+      text-align: center;
+      font-weight: 600;
+      color: #111;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 2000;
+    }
+
+    #popup {
+      display: none;
+    }
+
+    #popup button, #nameInputBox button {
+      margin: 10px 8px;
+      padding: 10px 25px;
+      border: none;
+      border-radius: 12px;
+      background: #fbbf24;
+      font-size: 18px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.15s;
+    }
+
+    #popup button:hover, #nameInputBox button:hover {
+      transform: scale(1.05);
+      background: #facc15;
+    }
+
+    .nameInput {
+      width: 90%;
+      padding: 10px;
+      margin: 6px 0;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      font-size: 18px;
+      font-family: 'Kanit', sans-serif;
+    }
+
+    #nameInputs {
+      max-height: 300px; 
+      overflow-y: auto;  
+      margin-bottom: 10px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas"></canvas>
+
+  <div id="gameTitle">🎯 เกมส์สอยนก สายเปย์ 🎯</div>
+
+  <div id="nameInputBox">
+    <h2>ใส่รายชื่อผู้เล่น</h2>
+    <div id="nameInputs">
+      <input type="text" class="nameInput" placeholder="ใส่ชื่อผู้เล่น"><br>
+      <input type="text" class="nameInput" placeholder="ใส่ชื่อผู้เล่น"><br>
+    </div>
+    <button onclick="addNameInput()">+ เพิ่มช่อง</button><br>
+    <button onclick="startGame()">เริ่มเกม</button>
+  </div>
+
+  <div id="popup">
+    <div id="popupText"></div>
+    <button onclick="restartSameNames()">🔄 เล่นใหม่ (รายชื่อเดิม)</button>
+    <button onclick="chooseNewNames()">📝 เลือกรายชื่อใหม่</button>
+  </div>
+
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let names = []; 
+    let animals = [];
+    let clouds = [];
+    let trees = [];
+    let gameStarted = false;
+    let spawnInterval;
+
+    // ตัวละครในฟ้า (ผึ้ง, นก)
+    const skyEmojis = ["🐝","🕊️","🦅"];
+    // ตัวละครบนดิน (กระต่าย, เต่า)
+    const groundEmojis = ["🐇","🐢","🦆"];
+
+    // ---- เพิ่มก้อนเมฆ ----
+    class Cloud {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * 150;
+        this.size = 80 + Math.random() * 60;
+        this.speed = 0.2 + Math.random() * 0.3;
+      }
+      draw() {
+        ctx.fillStyle = "rgba(255,255,255,0.7)";
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size * 0.4, 0, Math.PI * 2);
+        ctx.arc(this.x + this.size * 0.4, this.y + 10, this.size * 0.35, 0, Math.PI * 2);
+        ctx.arc(this.x - this.size * 0.4, this.y + 10, this.size * 0.35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      update() {
+        this.x += this.speed;
+        if (this.x - this.size > canvas.width) {
+          this.x = -this.size;
+        }
+        this.draw();
+      }
+    }
+
+    // ---- เพิ่มต้นไม้ ----
+    class Tree {
+      constructor(x) {
+        this.x = x;
+        this.y = canvas.height - 80;
+        this.height = 100 + Math.random() * 50;
+      }
+      draw() {
+        // ลำต้น
+        ctx.fillStyle = "#5d3a1a";
+        ctx.fillRect(this.x, this.y - this.height, 20, this.height);
+
+        // พุ่มไม้
+        ctx.fillStyle = "#2e7d32";
+        ctx.beginPath();
+        ctx.arc(this.x + 10, this.y - this.height, 40, 0, Math.PI * 2);
+        ctx.arc(this.x - 20, this.y - this.height + 20, 35, 0, Math.PI * 2);
+        ctx.arc(this.x + 40, this.y - this.height + 20, 35, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    class Animal {
+      constructor(name, emoji, isGround = false) {
+        this.isGround = isGround;
+        this.emoji = emoji;
+        this.name = name;
+        this.size = 50;
+
+        if (isGround) {
+          this.y = canvas.height - 100; 
+          this.x = Math.random() < 0.5 ? -50 : canvas.width + 50;
+          this.speed = (Math.random() * 2 + 1) * (this.x < 0 ? 1 : -1);
+        } else {
+          this.x = Math.random() < 0.5 ? -50 : canvas.width + 50;
+          this.y = Math.random() * (canvas.height / 2 - 100);
+          this.speed = (Math.random() * 2 + 1) * (this.x < 0 ? 1 : -1);
+        }
+        this.hit = false;
+        this.fallSpeed = 0; 
+        this.fallen = false; 
+      }
+
+      draw() {
+        ctx.font = this.size + "px serif";
+        ctx.fillText(this.emoji, this.x, this.y);
+      }
+
+      update() {
+        if (!this.hit) {
+          this.x += this.speed;
+        } else if (!this.fallen) {
+          this.fallSpeed += 0.5;  
+          this.y += this.fallSpeed;
+          if (this.y >= canvas.height - 50) {
+            this.fallen = true;
+            setTimeout(() => {
+              showPopup(this.name);
+            }, 400);
+          }
+        }
+        this.draw();
+      }
+    }
+
+    function spawnAnimal() {
+      if (names.length === 0) return;
+      const name = names[Math.floor(Math.random() * names.length)];
+
+      if (Math.random() < 0.5) {
+        const emoji = skyEmojis[Math.floor(Math.random() * skyEmojis.length)];
+        animals.push(new Animal(name, emoji, false));
+      } else {
+        const emoji = groundEmojis[Math.floor(Math.random() * groundEmojis.length)];
+        animals.push(new Animal(name, emoji, true));
+      }
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // วาดก้อนเมฆ
+      clouds.forEach(c => c.update());
+
+      // วาดต้นไม้
+      trees.forEach(t => t.draw());
+
+      if (gameStarted) {
+        animals.forEach((a, index) => {
+          a.update();
+          if (a.x < -100 || a.x > canvas.width + 100 || a.y > canvas.height + 200) {
+            animals.splice(index, 1);
+          }
+        });
+      }
+      requestAnimationFrame(animate);
+    }
+
+    canvas.addEventListener("click", (e) => {
+      animals.forEach((a) => {
+        if (
+          e.clientX > a.x &&
+          e.clientX < a.x + a.size &&
+          e.clientY > a.y - a.size &&
+          e.clientY < a.y &&
+          !a.hit
+        ) {
+          a.hit = true;
+          a.speed = 0; 
+        }
+      });
+    });
+
+    function showPopup(name) {
+      document.getElementById("popupText").innerText =
+        name + "\nคุณโดนสอยร่วง ต้องเปย์ข้าว เปย์น้ำ ลงไปเอาของ";
+      document.getElementById("popup").style.display = "block";
+      clearInterval(spawnInterval); 
+      gameStarted = false;
+    }
+
+    function addNameInput() {
+      const container = document.getElementById("nameInputs");
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "nameInput";
+      input.placeholder = "ใส่ชื่อผู้เล่น";
+      container.appendChild(input);
+      container.appendChild(document.createElement("br"));
+    }
+
+    function startGame() {
+      const inputElements = document.querySelectorAll(".nameInput");
+      names = Array.from(inputElements)
+        .map(input => input.value.trim())
+        .filter(n => n);
+
+      if (names.length === 0) {
+        alert("กรุณาใส่รายชื่ออย่างน้อย 1 คน");
+        return;
+      }
+
+      document.getElementById("nameInputBox").style.display = "none";
+      document.getElementById("gameTitle").style.display = "none";
+      document.getElementById("popup").style.display = "none";
+      animals = [];
+      gameStarted = true;
+      spawnInterval = setInterval(spawnAnimal, 2000);
+    }
+
+    function restartSameNames() {
+      document.getElementById("popup").style.display = "none";
+      animals = [];
+      gameStarted = true;
+      spawnInterval = setInterval(spawnAnimal, 2000);
+    }
+
+    function chooseNewNames() {
+      document.getElementById("popup").style.display = "none";
+      document.getElementById("nameInputBox").style.display = "block";
+      document.getElementById("gameTitle").style.display = "block";
+      animals = [];
+      names = [];
+    }
+
+    // สร้างก้อนเมฆหลายก้อน
+    for (let i = 0; i < 6; i++) {
+      clouds.push(new Cloud());
+    }
+
+    // สร้างต้นไม้เรียงบนพื้น
+    for (let x = 50; x < canvas.width; x += 200) {
+      trees.push(new Tree(x));
+    }
+
+    animate();
+  </script>
+</body>
+</html>

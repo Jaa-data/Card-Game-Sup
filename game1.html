@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>วงล้อสายเปย์ - ใครแพ้เลี้ยงข้าว!</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap');
+
+    body {
+      font-family: 'Sarabun', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #74ebd5 0%, #ACB6E5 100%);
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 40px;
+      font-weight: 900;
+      text-align: center;
+      margin: 50px 0 20px 0;
+      color: #fff;
+      text-shadow: 
+        3px 3px 0px #ff00ff,
+        6px 6px 0px #00ffff,
+        9px 9px 0px #ffea00;
+      animation: wobble 2s infinite ease-in-out;
+      letter-spacing: 2px;
+    }
+
+    @keyframes wobble {
+      0%, 100% { transform: translateX(0) rotate(0deg); }
+      25% { transform: translateX(-8px) rotate(-2deg); }
+      50% { transform: translateX(8px) rotate(2deg); }
+      75% { transform: translateX(-5px) rotate(-1deg); }
+    }
+
+    .input-container {
+      margin: 20px 0;
+      text-align: center;
+    }
+
+    .player-input {
+      display: block;
+      margin: 8px auto;
+      padding: 8px;
+      font-size: 16px;
+      width: 250px;
+      border-radius: 8px;
+      border: 1px solid #aaa;
+      font-family: 'Sarabun', sans-serif;
+    }
+
+    .wheel-container {
+      position: relative;
+      width: 500px;
+      height: 500px;
+      display: none;
+      margin: 40px 0;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+      transform: rotate(-90deg);
+      border-radius: 50%;
+      box-shadow: 0 0 20px rgba(0,0,0,0.2);
+      background: transparent;
+    }
+
+    text {
+      font-weight: bold;
+      font-size: 18px;
+      fill: white;
+      pointer-events: none;
+      user-select: none;
+      dominant-baseline: middle;
+      text-anchor: middle;
+      font-family: 'Sarabun', sans-serif;
+      filter: drop-shadow(1px 1px 1px rgba(0,0,0,0.6));
+    }
+
+    .pointer {
+      position: absolute;
+      top: -1px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 0;
+      border-left: 20px solid transparent;
+      border-right: 20px solid transparent;
+      border-top: 30px solid red;
+      z-index: 10;
+    }
+
+    .buttons {
+      margin-top: 40px;
+      display: none;
+    }
+
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      background: #FF6B6B;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      background: #ff4c4c;
+    }
+
+    .modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      color: #333;
+      padding: 50px;
+      border-radius: 16px;
+      box-shadow: 0 0 30px rgba(0,0,0,0.3);
+      font-size: 32px;
+      font-weight: bold;
+      text-align: center;
+      display: none;
+      z-index: 100;
+    }
+
+    .modal.active {
+      display: block;
+      animation: zoomIn 0.6s ease;
+    }
+
+    @keyframes zoomIn {
+      from {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+      }
+      to {
+        transform: translate(-50%, -50%) scale(1);
+        opacity: 1;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🎉 วงล้อสายเปย์ ใครแพ้ต้องเปย์ ลงไปเอาของ! 🎉</h1>
+
+  <!-- ฟอร์มเลือกผู้เล่น -->
+  <div class="input-container" id="inputSection">
+    <p>ใส่รายชื่อผู้เล่น (สูงสุด 25 คน)</p>
+    <div id="playerInputs"></div>
+    <button onclick="addInput()">➕ เพิ่มรายชื่อ</button>
+    <button onclick="startGame()">เริ่มเกม</button>
+  </div>
+
+  <!-- วงล้อ -->
+  <div class="wheel-container" id="wheelSection">
+    <div class="pointer"></div>
+    <svg id="wheel" viewBox="0 0 500 500"></svg>
+  </div>
+
+  <div class="buttons" id="actionButtons">
+    <button id="spinBtn" onclick="spin()">หมุนเลย!</button>
+    <button id="resetSameBtn" onclick="resetSame()" style="display:none;">เล่นใหม่จากรายชื่อเดิม</button>
+    <button id="resetBtn" onclick="reset()" style="display:none;">เลือกชื่อใหม่ทั้งหมด</button>
+  </div>
+
+  <div class="modal" id="resultModal"></div>
+
+  <script>
+    let names = [];
+    const colors = [
+      "#FF6384","#36A2EB","#FFCE56","#4BC0C0",
+      "#9966FF","#FF9F40","#00C49F","#FF7F50",
+      "#FFD700","#8A2BE2","#20B2AA","#DC143C",
+      "#FF69B4","#00BFFF","#ADFF2F","#FF4500",
+      "#32CD32","#800000","#708090","#00CED1",
+      "#FF1493","#B22222","#2E8B57","#6A5ACD","#D2691E"
+    ];
+
+    const wheel = document.getElementById("wheel");
+    const modal = document.getElementById("resultModal");
+    const wheelSection = document.getElementById("wheelSection");
+    const actionButtons = document.getElementById("actionButtons");
+    const inputSection = document.getElementById("inputSection");
+    const playerInputs = document.getElementById("playerInputs");
+
+    const center = 250;
+    const radius = 200;
+    let segmentAngle = 0;
+    let spinning = false;
+
+    // เริ่มต้นมี 2 ช่อง
+    addInput();
+    addInput();
+
+    function addInput() {
+      if (playerInputs.children.length >= 25) {
+        alert("ใส่ได้สูงสุด 25 คนเท่านั้น");
+        return;
+      }
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "player-input";
+      input.placeholder = "ชื่อผู้เล่น";
+      playerInputs.appendChild(input);
+    }
+
+    function startGame() {
+      names = Array.from(playerInputs.querySelectorAll("input"))
+        .map(i => i.value.trim())
+        .filter(v => v !== "");
+      
+      if (names.length < 2) {
+        alert("กรุณาใส่รายชื่ออย่างน้อย 2 คน");
+        return;
+      }
+
+      inputSection.style.display = "none";
+      wheelSection.style.display = "block";
+      actionButtons.style.display = "block";
+
+      createWheel();
+    }
+
+    function createWheel() {
+      wheel.innerHTML = '';
+      segmentAngle = 360 / names.length;
+
+      for(let i=0; i<names.length; i++) {
+        const startAngle = i * segmentAngle;
+        const endAngle = startAngle + segmentAngle;
+
+        const x1 = center + radius * Math.cos(Math.PI * startAngle / 180);
+        const y1 = center + radius * Math.sin(Math.PI * startAngle / 180);
+        const x2 = center + radius * Math.cos(Math.PI * endAngle / 180);
+        const y2 = center + radius * Math.sin(Math.PI * endAngle / 180);
+
+        const largeArcFlag = segmentAngle > 180 ? 1 : 0;
+
+        const pathData = `
+          M ${center} ${center}
+          L ${x1} ${y1}
+          A ${radius} ${radius} 0 ${largeArcFlag} 1 ${x2} ${y2}
+          Z
+        `;
+
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        path.setAttribute("fill", colors[i % colors.length]);
+        path.setAttribute("stroke", "white");
+        path.setAttribute("stroke-width", "2");
+        wheel.appendChild(path);
+
+        const textAngle = startAngle + segmentAngle / 2;
+        const textRadius = radius * 0.65;
+        const textX = center + textRadius * Math.cos(Math.PI * textAngle / 180);
+        const textY = center + textRadius * Math.sin(Math.PI * textAngle / 180);
+
+        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        text.setAttribute("x", textX);
+        text.setAttribute("y", textY);
+        text.textContent = names[i];
+        text.setAttribute("transform", `rotate(${textAngle + 90}, ${textX}, ${textY})`);
+        wheel.appendChild(text);
+      }
+    }
+
+    function spin() {
+      if (spinning) return;
+      spinning = true;
+      modal.classList.remove("active");
+      modal.textContent = '';
+
+      const spins = 5;
+      const selectedIndex = Math.floor(Math.random() * names.length);
+
+      const offset = -90;
+      const stopAngle = 360 - (selectedIndex * segmentAngle + segmentAngle / 2) + offset;
+      const finalAngle = spins * 360 + stopAngle;
+
+      wheel.style.transition = "transform 4s cubic-bezier(0.33, 1, 0.68, 1)";
+      wheel.style.transform = `rotate(${finalAngle}deg)`;
+
+      setTimeout(() => {
+        modal.innerHTML = `🥳 ${names[selectedIndex]}! <br>คุณต้องเปย์ข้าวเปย์นํ้า ลงไปเอาของ ให้ทุกๆคน 🍚🍗🍛`;
+        modal.classList.add("active");
+        spinning = false;
+
+        // ซ่อนปุ่มหมุน และโชว์ปุ่มรีเซ็ต
+        document.getElementById("spinBtn").style.display = "none";
+        document.getElementById("resetSameBtn").style.display = "inline-block";
+        document.getElementById("resetBtn").style.display = "inline-block";
+      }, 4000);
+    }
+
+    // เล่นใหม่โดยใช้รายชื่อเดิม
+    function resetSame() {
+      wheel.style.transition = "none";
+      wheel.style.transform = "rotate(0deg)";
+      modal.classList.remove("active");
+      spinning = false;
+
+      document.getElementById("spinBtn").style.display = "inline-block";
+      document.getElementById("resetSameBtn").style.display = "none";
+      document.getElementById("resetBtn").style.display = "none";
+    }
+
+    // รีเซ็ตกลับไปเลือกชื่อใหม่
+    function reset() {
+      wheel.style.transition = "none";
+      wheel.style.transform = "rotate(0deg)";
+      modal.classList.remove("active");
+      spinning = false;
+      inputSection.style.display = "block";
+      wheelSection.style.display = "none";
+      actionButtons.style.display = "none";
+      playerInputs.innerHTML = "";
+      addInput();
+      addInput();
+
+      document.getElementById("spinBtn").style.display = "inline-block";
+      document.getElementById("resetSameBtn").style.display = "none";
+      document.getElementById("resetBtn").style.display = "none";
+    }
+  </script>
+
+</body>
+</html>
